@@ -199,7 +199,7 @@ class Edge_Server(object):
         for client in self.clients_2:
             
             tot_samples += client.train_samples
-            self.uploaded_ids_2 .append(client.id)   #client.id 客户端编号
+            self.uploaded_ids_2 .append(client.id)   
             self.uploaded_weights_2 .append(client.train_samples)
             self.uploaded_models_2 .append(client.model)  #添加客户端上传的模型到uploaded_models
         for i, w in enumerate(self.uploaded_weights_2 ):  
@@ -209,7 +209,7 @@ class Edge_Server(object):
     def aggregate_parameters1(self):
         assert (len(self.uploaded_models) > 0)
 
-        self.edge_model_1 = copy.deepcopy(self.uploaded_models[0])  #使全局模型与客户端上传的模型形状相同
+        self.edge_model_1 = copy.deepcopy(self.uploaded_models[0])  
         for param in self.edge_model_1.parameters():
             param.data.zero_() #初始边缘模型置零
            
@@ -221,7 +221,7 @@ class Edge_Server(object):
     def aggregate_parameters2(self):
         assert (len(self.uploaded_models_2) > 0)
 
-        self.edge_model_2 = copy.deepcopy(self.uploaded_models_2[0])  #使全局模型与客户端上传的模型形状相同
+        self.edge_model_2 = copy.deepcopy(self.uploaded_models_2[0])  
         for param in self.edge_model_2.parameters():
             param.data.zero_() #初始边缘模型置零
            
@@ -320,57 +320,7 @@ class Edge_Server(object):
         print("Std Test Accurancy: {:.4f}".format(np.std(accs)))
         print("Std Test AUC: {:.4f}".format(np.std(aucs)))
 
-    def edge_test_metrics_2(self):
-        num_samples = []
-        tot_correct = []
-        tot_auc = []
-        for c in self.clients_2:
-            ct, ns, auc = c.test_metrics()
-            tot_correct.append(ct*1.0)
-            tot_auc.append(auc*ns)
-            num_samples.append(ns)
-        ids = [c.id for c in self.clients_2]
-
-        return ids, num_samples, tot_correct, tot_auc
-
-    def edge_train_metrics_2(self):
-        num_samples = []
-        losses = []
-        for c in self.clients_2:
-            cl, ns = c.train_metrics()
-            num_samples.append(ns)
-            losses.append(cl*1.0)
-        
-        ids = [c.id for c in self.clients_2]
-
-        return ids, num_samples, losses
-
-    # evaluate selected clients
-    def edge_evaluate_2(self, acc=None, loss=None):
-        stats = self.edge_test_metrics_2()
-        stats_train = self.edge_train_metrics_2()
-        test_acc = sum(stats[2])*1.0 / sum(stats[1])
-        test_auc = sum(stats[3])*1.0 / sum(stats[1])
-        train_loss = sum(stats_train[2])*1.0 / sum(stats_train[1])
-        accs = [a / n for a, n in zip(stats[2], stats[1])]
-        aucs = [a / n for a, n in zip(stats[3], stats[1])]
-        if acc == None:
-            self.edge_rs_test_acc_2.append(test_acc)
-        else:
-            acc.append(test_acc)
-        if loss == None:
-            self.edge_rs_train_loss_2.append(train_loss)
-        else:
-            loss.append(train_loss)
-        
-        print("\n Intermediate Averaged Train Loss: {:.4f}".format(train_loss))
-        print(" Intermediate Averaged Test Accurancy: {:.4f}".format(test_acc))
-        print(" Intermediate Averaged Test AUC: {:.4f}".format(test_auc))
-        # self.print_(test_acc, train_acc, train_loss)
-        print("Std Test Accurancy: {:.4f}".format(np.std(accs)))
-        print("Std Test AUC: {:.4f}".format(np.std(aucs)))
-        
-           
+          
 class Edge_pFedMe(Edge_Server):
     def __init__(self, args, **kwargs):
         super().__init__(args, **kwargs)
@@ -414,16 +364,8 @@ class Edge_pFedMe(Edge_Server):
 
             if i%self.eval_gap == 0:
                 print(f"\n-------------Edge Round number: {i}-------------")
-                print("\nEdge Evaluate edge_1 model")
+                print("\nEdge Evaluate edge model")
                 self.edge_evaluate()
-
-
-            '''
-            if i%self.eval_gap == 0:
-                #print(f"\n-------------Edge Round number: {i}-------------")
-                print("\nEdge Evaluate edge_2 model")
-                self.edge_evaluate_2() 
-            '''          
 
             for client in self.clients:
                 client.train()
@@ -432,9 +374,7 @@ class Edge_pFedMe(Edge_Server):
                 #print(f"\n-------------Edge Round number: {i}-------------")
                 #print("\nEdge Evaluate personaized model")
                 #self.edge_evaluate_personalized()
-
-           
-            
+      
             self.receive_models()
             self.aggregate_parameters1()   #聚合客户端更新到edge_model
             self.receive_models_2()
@@ -475,22 +415,9 @@ class Edge_pFedMe(Edge_Server):
 
         print("\nEdge Best accuracy.")
         print(max(self.edge_rs_test_acc))
-        #print("\nEdge_2 Best accuracy.")
-        #print(max(self.edge_rs_test_acc_2))
-        #print("\nEdge Best personalized accuracy.")
-        #print(max(self.edge_rs_test_acc_per))
-        #print("\nEdge_2 Best personalized accuracy.")
-        #print(max(self.edge_rs_test_acc_per_2))
         print("\nAverage time cost per edge round.")
         print(sum(self.Budget[1:])/len(self.Budget[1:]))
 
-        '''
-        for new_param,edge_localweight in zip(self.edge_personalized_params,self.edge_local_params):
-            edge_localweight = edge_localweight.to(self.device)
-            edge_localweight.data = edge_localweight.data - self.lamda1 * self.edge_learning_rate * ( edge_localweight.data - new_param.data)
-
-        self.update_parameters(self.edge_model, self.edge_local_params)
-        '''
     
     def set_parameters(self, edge_model):
         for new_param, old_param_1, old_param_2, edge_local_param_1,edge_local_param_2 in zip(edge_model.parameters(), self.edge_model_1.parameters(), self.edge_model_2.parameters(), self.edge_local_params_1,self.edge_local_params_2):
